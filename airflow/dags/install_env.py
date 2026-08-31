@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
+from spatialdata_data_converter.airflow_tasks import build_install_env_task, build_update_repos_task
 
 default_args = get_airflow_default_args()
 
@@ -12,12 +13,7 @@ dag = DAG(
     catchup=False
 )
 
-run_shell_script = BashOperator(
-    task_id='run_install_env_script',
-    bash_command=get_cli_command('install-env'),
-    dag=dag,
-    retries=0,
-)
+run_shell_script = build_install_env_task(dag=dag)
 
 # --------- update repos DAG ---------
 dag_update_repos = DAG(
@@ -28,12 +24,7 @@ dag_update_repos = DAG(
     catchup=False
 )
 
-update_repos_task = BashOperator(
-    task_id='update_repos',
-    bash_command=get_cli_command('update-repos'),
-    dag=dag_update_repos,
-    retries=0,
-)
+update_repos_task = build_update_repos_task(dag=dag_update_repos)
 
 # --------- create symlinks DAG ---------
 dag_create_symlinks = DAG(

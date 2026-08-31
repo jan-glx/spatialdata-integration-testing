@@ -1,14 +1,12 @@
-import os
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
-from spatialdata_data_converter.config import Config, get_airflow_default_args, get_cli_command
+from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
+from spatialdata_data_converter.airflow_tasks import (
+    DOCS_NOTEBOOKS as docs_notebooks,
+    build_notebook_docs_task,
+)
 
 default_args = get_airflow_default_args()
-
-# List of notebooks
-# docs_notebooks = ['aggregation', 'transformations']
-EXCLUDED_NOTEBOOKS = ['technology_curio.ipynb', 'technology_stereoseq.ipynb', 'speed_up_illustration.ipynb', 'technology_cosmx.ipynb', '_latest_run_notebook.ipynb']
-docs_notebooks = [s[:-len('.ipynb')] for s in os.listdir(Config.DOCS_NOTEBOOKS_FOLDER) if s.endswith('.ipynb') and s not in EXCLUDED_NOTEBOOKS]
 
 for notebook in docs_notebooks:
     # --------- run a single documentation notebook ---------
@@ -66,35 +64,6 @@ globals()['symlinker_table_queries'] = BashOperator(
 globals()['symlinker_table_queries'] >> globals()['notebook_task_table-queries']
 
 # --------- run all the docs notebooks (lightweight) ---------
-# Mirrors the per-notebook symlinker wiring above: notebooks with a symlinker
-# must run it immediately before the notebook itself, so both steps are
-# chained into one mapped task's bash_command (same pass/fail semantics as
-# the symlinker >> notebook_task dependency used by the per-notebook DAGs).
-NOTEBOOK_SYMLINK_DATASETS = {
-    dataset: dataset
-    for dataset in [
-        'napari_rois', 'densenet', 'alignment_using_landmarks', 'spatial_query',
-        'squidpy_integration', 'technology_merfish', 'technology_mibitof',
-        'technology_visium', 'technology_visium_hd', 'technology_visium_hd_mouse_4.0.1',
-        'technology_xenium', 'transformations', 'transformations_advanced', 'technology_spacem',
-    ]
-}
-NOTEBOOK_SYMLINK_DATASETS.update({
-    'aggregation': 'transformations',
-    'intro': 'transformations',
-    'table-queries': 'technology_mibitof',
-})
-
-
-def _notebook_all_command(notebook: str) -> str:
-    notebook_cmd = get_cli_command(f'run-docs-notebook --notebook {notebook}')
-    symlink_dataset = NOTEBOOK_SYMLINK_DATASETS.get(notebook)
-    if symlink_dataset is None:
-        return notebook_cmd
-    symlink_cmd = get_cli_command(f'create-symlinks --dataset {symlink_dataset}')
-    return f'{symlink_cmd} && {notebook_cmd}'
-
-
 notebook_docs_all = DAG(
     'notebook_docs_all',
     default_args=default_args,
@@ -102,11 +71,4 @@ notebook_docs_all = DAG(
     schedule=None,
     catchup=False
 )
-run_notebook_docs_all = BashOperator.partial(
-    task_id='run_notebook',
-    dag=notebook_docs_all,
-    retries=0,
-    map_index_template='{{ task.bash_command.split()[-1] }}',
-).expand(
-    bash_command=[_notebook_all_command(notebook) for notebook in docs_notebooks]
-)
+run_notebook_docs_all = build_notebook_docs_task(dag=notebook_docs_all)
