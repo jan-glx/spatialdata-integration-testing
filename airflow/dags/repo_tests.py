@@ -1,9 +1,9 @@
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
+from spatialdata_data_converter.airflow_tasks import TEST_REPOS, build_tests_task
 
 default_args = get_airflow_default_args()
-TEST_REPOS = ["spatialdata", "spatialdata-plot", "spatialdata-io", "napari-spatialdata"]
 
 for repo in TEST_REPOS:
     # --------- run tests for a single repository ---------
@@ -39,10 +39,4 @@ tests_all = DAG(
     catchup=False
 )
 
-run_tests_all = BashOperator.partial(
-    task_id='run_tests',
-    dag=tests_all,
-    map_index_template='{{ task.bash_command.split()[-1] }}',
-).expand(
-    bash_command=[get_cli_command(f'run-tests --repo {repo}') for repo in TEST_REPOS]
-)
+run_tests_all = build_tests_task(dag=tests_all)
