@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import Param
 from spatialdata_data_converter.config import Config, branch_envvar, get_airflow_default_args, get_cli_command
+from spatialdata_data_converter.airflow_tasks import build_install_env_task, build_update_repos_task
 
 default_args = get_airflow_default_args()
 
@@ -13,12 +14,7 @@ dag = DAG(
     catchup=False
 )
 
-run_shell_script = BashOperator(
-    task_id='run_install_env_script',
-    bash_command=get_cli_command('install-env'),
-    dag=dag,
-    retries=0,
-)
+run_shell_script = build_install_env_task(dag=dag)
 
 # --------- update repos DAG ---------
 # Per-run branch overrides ("Trigger DAG w/ config"); empty = use Config.REPOSITORIES.
@@ -41,14 +37,11 @@ dag_update_repos = DAG(
     params=REPOSITORY_PARAMS,
 )
 
-update_repos_task = BashOperator(
-    task_id='update_repos',
-    bash_command=get_cli_command('update-repos'),
+update_repos_task = build_update_repos_task(
+    dag=dag_update_repos,
     # passed via env vars (read by the click options) rather than CLI args, to avoid shell quoting
     env={branch_envvar(repo): "{{ params['%s'] or '' }}" % repo for repo in REPOSITORY_PARAMS},
     append_env=True,
-    dag=dag_update_repos,
-    retries=0,
 )
 
 # --------- create symlinks DAG ---------
