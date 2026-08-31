@@ -8,6 +8,8 @@ MAP_INDEX_TEMPLATE = '{{ task.bash_command.split()[-1] }}'
 
 TEST_REPOS = ["spatialdata", "spatialdata-plot", "spatialdata-io", "napari-spatialdata"]
 
+DOWNLOADABLE_DATASETS = [d for d in Config.DATASETS if d not in Config.DATASETS_NO_DOWNLOAD]
+
 EXCLUDED_NOTEBOOKS = ['technology_curio.ipynb', 'technology_stereoseq.ipynb', 'speed_up_illustration.ipynb', 'technology_cosmx.ipynb', '_latest_run_notebook.ipynb']
 DOCS_NOTEBOOKS = [
     s[:-len('.ipynb')]
@@ -61,6 +63,38 @@ def build_install_env_task(dag, task_group=None):
         dag=dag,
         task_group=task_group,
         retries=0,
+    )
+
+
+def build_create_symlinks_task(dag, task_group=None):
+    return BashOperator(
+        task_id='create_symlinks',
+        bash_command=get_cli_command('create-symlinks'),
+        dag=dag,
+        task_group=task_group,
+        retries=0,
+    )
+
+
+def build_download_spatialdata_io_datasets_task(dag, task_group=None):
+    return BashOperator(
+        task_id='download_spatialdata_io_datasets',
+        bash_command=get_cli_command('download-spatialdata-io-dev-datasets'),
+        dag=dag,
+        task_group=task_group,
+        retries=0,
+    )
+
+
+def build_download_task(dag, task_group=None):
+    return BashOperator.partial(
+        task_id='run_download_script',
+        dag=dag,
+        task_group=task_group,
+        retries=0,
+        map_index_template=MAP_INDEX_TEMPLATE,
+    ).expand(
+        bash_command=[get_cli_command(f'download --dataset {dataset}') for dataset in DOWNLOADABLE_DATASETS]
     )
 
 
