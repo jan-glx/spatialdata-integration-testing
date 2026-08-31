@@ -1,8 +1,11 @@
 from airflow import DAG
-from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import Param
-from spatialdata_data_converter.config import Config, branch_envvar, get_airflow_default_args, get_cli_command
-from spatialdata_data_converter.airflow_tasks import build_install_env_task, build_update_repos_task
+from spatialdata_data_converter.config import Config, branch_envvar, get_airflow_default_args
+from spatialdata_data_converter.airflow_tasks import (
+    build_create_symlinks_task,
+    build_install_env_task,
+    build_update_repos_task,
+)
 
 default_args = get_airflow_default_args()
 
@@ -53,9 +56,4 @@ dag_create_symlinks = DAG(
     catchup=False
 )
 
-create_symlinks_task = BashOperator(
-    task_id='create_symlinks',
-    bash_command=get_cli_command('create-symlinks'),
-    dag=dag_create_symlinks,
-    retries=0,
-)
+create_symlinks_task = build_create_symlinks_task(dag=dag_create_symlinks)
