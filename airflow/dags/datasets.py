@@ -74,22 +74,22 @@ for dataset in Config.DATASETS:
         globals()[dag_id] = dag
 
 # --------- download all datasets ---------
-# Creation of a 'download_all' DAG that triggers all 'download_{dataset}' DAGs
+# Creation of a 'download_all' DAG that runs a mapped download task per dataset
 download_all = DAG(
     'download_all',
     default_args=default_args,
-    description='Trigger all the download tasks',
+    description='Run all the download tasks',
     schedule=None,
     catchup=False
 )
-for dataset in Config.DATASETS:
-    if dataset not in Config.DATASETS_NO_DOWNLOAD:
-        trigger = TriggerDagRunOperator(
-            task_id=f'trigger_download_{dataset}_from_download_all',
-            trigger_dag_id=f'download_{dataset}',
-            wait_for_completion=True,
-            dag=download_all,
-        )
+downloadable_datasets = [d for d in Config.DATASETS if d not in Config.DATASETS_NO_DOWNLOAD]
+run_download_all = BashOperator.partial(
+    task_id='run_download_script',
+    dag=download_all,
+    retries=0,
+).expand(
+    bash_command=[get_cli_command(f'download --dataset {dataset}') for dataset in downloadable_datasets]
+)
 
 # Also trigger spatialdata-io datasets download
 trigger_spatialdata_io_datasets = TriggerDagRunOperator(
@@ -100,39 +100,35 @@ trigger_spatialdata_io_datasets = TriggerDagRunOperator(
 )
 
 # --------- convert all datasets to zarr ---------
-# Creation of a 'to_zarr_all' DAG that triggers all 'to_zarr_{dataset}' DAGs and is scheduled to run daily
+# Creation of a 'to_zarr_all' DAG that runs a mapped to_zarr task per dataset
 to_zarr_all = DAG(
     'to_zarr_all',
     default_args=default_args,
-    description='Trigger all the to_zarr tasks',
+    description='Run all the to_zarr tasks',
     schedule=None,
     catchup=False
 )
-for dataset in Config.DATASETS:
-    if dataset in Config.DATASETS_NO_TO_ZARR:
-        continue
-    trigger = TriggerDagRunOperator(
-        task_id=f'trigger_to_zarr_{dataset}_from_to_zarr_all',
-        trigger_dag_id=f'to_zarr_{dataset}',
-        wait_for_completion=True,
-        dag=to_zarr_all,
-    )
+run_to_zarr_all = BashOperator.partial(
+    task_id='run_to_zarr_script',
+    dag=to_zarr_all,
+    retries=0,
+).expand(
+    bash_command=[get_cli_command(f'to-zarr --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_TO_ZARR]
+)
 
 # --------- upload all datasets ---------
-# Creation of an 'upload_all' DAG that triggers all 'upload_{dataset}' DAGs
+# Creation of an 'upload_all' DAG that runs a mapped upload task per dataset
 upload_all = DAG(
     'upload_all',
     default_args=default_args,
-    description='Trigger all the upload tasks',
+    description='Run all the upload tasks',
     schedule=None,
     catchup=False
 )
-for dataset in Config.DATASETS:
-    if dataset in Config.DATASETS_NO_UPLOAD:
-        continue
-    trigger = TriggerDagRunOperator(
-        task_id=f'trigger_upload_{dataset}_from_upload_all',
-        trigger_dag_id=f'upload_{dataset}',
-        wait_for_completion=True,
-        dag=upload_all,
-    )
+run_upload_all = BashOperator.partial(
+    task_id='run_upload_script',
+    dag=upload_all,
+    retries=0,
+).expand(
+    bash_command=[get_cli_command(f'upload --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_UPLOAD]
+)
