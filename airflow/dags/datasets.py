@@ -87,6 +87,7 @@ run_download_all = BashOperator.partial(
     task_id='run_download_script',
     dag=download_all,
     retries=0,
+    map_index_template='{{ task.bash_command.split()[-1] }}',
 ).expand(
     bash_command=[get_cli_command(f'download --dataset {dataset}') for dataset in downloadable_datasets]
 )
@@ -112,6 +113,7 @@ run_to_zarr_all = BashOperator.partial(
     task_id='run_to_zarr_script',
     dag=to_zarr_all,
     retries=0,
+    map_index_template='{{ task.bash_command.split()[-1] }}',
 ).expand(
     bash_command=[get_cli_command(f'to-zarr --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_TO_ZARR]
 )
@@ -129,6 +131,7 @@ run_upload_all = BashOperator.partial(
     task_id='run_upload_script',
     dag=upload_all,
     retries=0,
+    map_index_template='{{ task.bash_command.split()[-1] }}',
 ).expand(
     bash_command=[get_cli_command(f'upload --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_UPLOAD]
 )
