@@ -42,6 +42,7 @@ tests_all = DAG(
 run_tests_all = BashOperator.partial(
     task_id='run_tests',
     dag=tests_all,
+    map_index_template='{{ task.bash_command.split()[-1] }}',
 ).expand(
     bash_command=[get_cli_command(f'run-tests --repo {repo}') for repo in TEST_REPOS]
 )
