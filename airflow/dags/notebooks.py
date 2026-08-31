@@ -106,6 +106,7 @@ run_notebook_docs_all = BashOperator.partial(
     task_id='run_notebook',
     dag=notebook_docs_all,
     retries=0,
+    map_index_template='{{ task.bash_command.split()[-1] }}',
 ).expand(
     bash_command=[_notebook_all_command(notebook) for notebook in docs_notebooks]
 )
