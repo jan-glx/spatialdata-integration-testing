@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from spatialdata_data_converter.config import Config, get_airflow_default_args, get_cli_command
-from spatialdata_data_converter.airflow_tasks import build_to_zarr_task
+from spatialdata_data_converter.airflow_tasks import build_download_task, build_to_zarr_task
 
 default_args = get_airflow_default_args()
 
@@ -83,15 +83,7 @@ download_all = DAG(
     schedule=None,
     catchup=False
 )
-downloadable_datasets = [d for d in Config.DATASETS if d not in Config.DATASETS_NO_DOWNLOAD]
-run_download_all = BashOperator.partial(
-    task_id='run_download_script',
-    dag=download_all,
-    retries=0,
-    map_index_template='{{ task.bash_command.split()[-1] }}',
-).expand(
-    bash_command=[get_cli_command(f'download --dataset {dataset}') for dataset in downloadable_datasets]
-)
+run_download_all = build_download_task(dag=download_all)
 
 # Also trigger spatialdata-io datasets download
 trigger_spatialdata_io_datasets = TriggerDagRunOperator(
