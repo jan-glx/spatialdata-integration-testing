@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from spatialdata_data_converter.config import Config, get_airflow_default_args, get_cli_command
+from spatialdata_data_converter.airflow_tasks import build_to_zarr_task
 
 default_args = get_airflow_default_args()
 
@@ -109,14 +110,7 @@ to_zarr_all = DAG(
     schedule=None,
     catchup=False
 )
-run_to_zarr_all = BashOperator.partial(
-    task_id='run_to_zarr_script',
-    dag=to_zarr_all,
-    retries=0,
-    map_index_template='{{ task.bash_command.split()[-1] }}',
-).expand(
-    bash_command=[get_cli_command(f'to-zarr --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_TO_ZARR]
-)
+run_to_zarr_all = build_to_zarr_task(dag=to_zarr_all)
 
 # --------- upload all datasets ---------
 # Creation of an 'upload_all' DAG that runs a mapped upload task per dataset
