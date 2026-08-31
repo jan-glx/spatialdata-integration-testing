@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
 
 default_args = get_airflow_default_args()
@@ -35,15 +34,14 @@ for repo in TEST_REPOS:
 tests_all = DAG(
     'tests_all',
     default_args=default_args,
-    description='Trigger all pytest tasks',
+    description='Run all pytest tasks',
     schedule=None,
     catchup=False
 )
 
-for repo in TEST_REPOS:
-    trigger = TriggerDagRunOperator(
-        task_id=f'trigger_tests_{repo}_from_tests_all',
-        trigger_dag_id=f'tests_{repo}',
-        wait_for_completion=True,
-        dag=tests_all,
-    )
+run_tests_all = BashOperator.partial(
+    task_id='run_tests',
+    dag=tests_all,
+).expand(
+    bash_command=[get_cli_command(f'run-tests --repo {repo}') for repo in TEST_REPOS]
+)
