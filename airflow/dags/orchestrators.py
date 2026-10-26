@@ -66,8 +66,8 @@ orchestrator_test_workflow = DAG(
     # Same syntax as Config.REPOSITORIES: 'main', 'branch-name', 'pr 329', 'tag v0.4.0', 'None' (latest release).
     params={
         repo: Param(
-            "",
-            type="string",
+            None,
+            type=["null", "string"],  # nullable, so the trigger form doesn't mark it required
             description=f"Branch / 'pr <n>' / 'tag <t>' / 'None' for {repo}; empty = config.py ({Config.REPOSITORIES[repo]!r})",
         )
         for repo in Config.REPOSITORIES
@@ -77,7 +77,7 @@ orchestrator_test_workflow = DAG(
 test_workflow_update_repos = TriggerDagRunOperator(
     task_id='trigger_config_update_repos',
     trigger_dag_id='config_update_repos',
-    conf={repo: "{{ params['%s'] }}" % repo for repo in Config.REPOSITORIES},
+    conf={repo: "{{ params['%s'] or '' }}" % repo for repo in Config.REPOSITORIES},
     wait_for_completion=True,
     dag=orchestrator_test_workflow,
 )

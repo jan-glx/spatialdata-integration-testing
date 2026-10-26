@@ -25,8 +25,8 @@ run_shell_script = BashOperator(
 # Same syntax as Config.REPOSITORIES: 'main', 'branch-name', 'pr 329', 'tag v0.4.0', 'None' (latest release).
 REPOSITORY_PARAMS = {
     repo: Param(
-        "",
-        type="string",
+        None,
+        type=["null", "string"],  # nullable, so the trigger form doesn't mark it required
         description=f"Branch / 'pr <n>' / 'tag <t>' / 'None' for {repo}; empty = config.py ({Config.REPOSITORIES[repo]!r})",
     )
     for repo in Config.REPOSITORIES
@@ -45,7 +45,7 @@ update_repos_task = BashOperator(
     task_id='update_repos',
     bash_command=get_cli_command('update-repos'),
     # passed via env vars (read by the click options) rather than CLI args, to avoid shell quoting
-    env={branch_envvar(repo): "{{ params['%s'] }}" % repo for repo in REPOSITORY_PARAMS},
+    env={branch_envvar(repo): "{{ params['%s'] or '' }}" % repo for repo in REPOSITORY_PARAMS},
     append_env=True,
     dag=dag_update_repos,
     retries=0,
