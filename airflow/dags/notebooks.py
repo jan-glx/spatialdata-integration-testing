@@ -2,13 +2,13 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
 from spatialdata_data_converter.airflow_tasks import (
-    DOCS_NOTEBOOKS as docs_notebooks,
+    docs_notebooks,
     build_notebook_docs_task,
 )
 
 default_args = get_airflow_default_args()
 
-for notebook in docs_notebooks:
+for notebook in docs_notebooks():
     # --------- run a single documentation notebook ---------
     dag_id = f'notebook_{notebook}'
 
