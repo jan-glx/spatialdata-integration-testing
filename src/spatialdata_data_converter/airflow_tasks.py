@@ -13,11 +13,15 @@ DOWNLOADABLE_DATASETS = [d for d in Config.DATASETS if d not in Config.DATASETS_
 # 'create_cells_dataset.ipynb' ingests the raw Xenium Prime Cervical Cancer dataset
 # (~75 GB on disk), so it is excluded and run manually when needed
 EXCLUDED_NOTEBOOKS = ['technology_curio.ipynb', 'technology_stereoseq.ipynb', 'speed_up_illustration.ipynb', 'technology_cosmx.ipynb', '_latest_run_notebook.ipynb', 'create_cells_dataset.ipynb']
-DOCS_NOTEBOOKS = [
-    s[:-len('.ipynb')]
-    for s in os.listdir(Config.DOCS_NOTEBOOKS_FOLDER)
-    if s.endswith('.ipynb') and s not in EXCLUDED_NOTEBOOKS
-]
+def docs_notebooks() -> list[str]:
+    # Called lazily (not at import time) so that a missing notebooks checkout only
+    # breaks the notebook DAGs, not every DAG that imports this module -- in
+    # particular not config_update_repos, which is what fetches the checkout.
+    return [
+        s[:-len('.ipynb')]
+        for s in os.listdir(Config.DOCS_NOTEBOOKS_FOLDER)
+        if s.endswith('.ipynb') and s not in EXCLUDED_NOTEBOOKS
+    ]
 
 # Notebooks that need a symlinker run immediately before them. Keys equal to
 # their value are the common case (create-symlinks --dataset X for notebook
@@ -133,5 +137,5 @@ def build_notebook_docs_task(dag, task_group=None):
         retries=0,
         map_index_template=MAP_INDEX_TEMPLATE,
     ).expand(
-        bash_command=[notebook_all_command(notebook) for notebook in DOCS_NOTEBOOKS]
+        bash_command=[notebook_all_command(notebook) for notebook in docs_notebooks()]
     )
