@@ -201,7 +201,7 @@ def _run_tests(repo, test_path, docker=None):
     if test_path:
         path = path / test_path
     run_subprocess(
-        cmd=f"pushd . && cd {repo_path} && python -m pytest -v -n auto --dist worksteal {str(path)} && popd",
+        cmd=f"pushd . && cd {repo_path} && python -m pytest --tb=short -n auto --dist worksteal {str(path)} && popd",
         env=sdcc.Config.ENV,
         update_repos=False,
     )
