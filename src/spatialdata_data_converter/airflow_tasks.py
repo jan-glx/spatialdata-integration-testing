@@ -34,9 +34,12 @@ DOWNLOADABLE_DATASETS = [d for d in Config.DATASETS if d not in Config.DATASETS_
 # (~75 GB on disk), so it is excluded and run manually when needed
 EXCLUDED_NOTEBOOKS = ['technology_curio.ipynb', 'technology_stereoseq.ipynb', 'speed_up_illustration.ipynb', 'technology_cosmx.ipynb', '_latest_run_notebook.ipynb', 'create_cells_dataset.ipynb']
 def docs_notebooks() -> list[str]:
-    # Called lazily (not at import time) so that a missing notebooks checkout only
-    # breaks the notebook DAGs, not every DAG that imports this module -- in
-    # particular not config_update_repos, which is what fetches the checkout.
+    # Called when a DAG file is parsed. On a fresh instance the notebooks checkout doesn't exist
+    # until update_repos has run (which is a task of the orchestrators that use this), so a
+    # missing checkout gives no notebooks rather than an import error; the next parse after
+    # update_repos picks them up.
+    if not os.path.isdir(Config.DOCS_NOTEBOOKS_FOLDER):
+        return []
     return [
         s[:-len('.ipynb')]
         for s in os.listdir(Config.DOCS_NOTEBOOKS_FOLDER)
