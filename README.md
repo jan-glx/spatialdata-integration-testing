@@ -28,22 +28,24 @@ If you have access to remote machine, everything is already setup.
 
 1. **First run (initial setup, already performed).**
 
-    Run the orchestrator DAG `0_orchestrator_first_run` which automatically executes the following sequence:
-    1. `config_update_repos`
-    2. `config_create_symlinks`
-    3. `config_install_env`
-    4. `download_all`
+    Run the orchestrator DAG `0_orchestrator_first_run`. It runs these steps as tasks of one DAG:
+    1. update repos (as `config_update_repos`)
+    2. create symlinks (as `config_create_symlinks`)
+    3. install env (as `config_install_env`)
+    4. download all datasets (as `download_all`)
 
 2. **Testing workflow (before releases).**
 
-    Run the orchestrator DAG `0_orchestrator_test_workflow` which automatically executes the following sequence:
-    1. `config_update_repos` (ensure repos are up-to-date)
-    2. `config_install_env` (ensure environment is current)
-    3. `tests_all`
-    4. `to_zarr_all`
-    5. `notebook_docs_all`
+    Run the orchestrator DAG `0_orchestrator_test_workflow`. It runs these steps as tasks of one DAG:
+    1. update repos (as `config_update_repos`; branch overrides via "Trigger DAG w/ config")
+    2. install env (as `config_install_env`)
+    3. tests (as `tests_all`)
+    4. convert to zarr (as `to_zarr_all`)
+    5. docs notebooks (as `notebook_docs_all`)
 
-    - Each stage waits for all jobs from the previous stage to complete before starting. Jobs within each stage run in parallel.
+    - Each stage waits for all jobs from the previous stage to complete before starting. Jobs within each stage run in parallel (mapped tasks).
+    - The per-step DAGs in parentheses run the same tasks on their own, e.g. to rerun only the tests. Both orchestrators build their steps from the same task builders (`spatialdata_data_converter/airflow_tasks.py`); no DAG triggers another.
+    - It runs nightly once unpaused. On a fresh Airflow instance it starts paused (`is_paused_upon_creation=True`), as do the `upload_*` DAGs and `update_dev_datasets`; every other DAG starts unpaused.
     - Running the whole test workflow takes around 20 minutes on a MacBook Pro M4 Pro
 
 3. **Upload data (before a release).**
@@ -81,7 +83,7 @@ If you have access to remote machine, everything is already setup.
 
 4. Copy `template_envvars.sh` into `envvars.sh` and update the paths as explained in the comments in that file.
     Optionally set `SDC_WORKSPACE` there to keep the tested repositories, and all data downloaded/converted inside them, outside this checkout (default: the `dependencies/` submodules). Missing repositories are cloned into it by `update-repos`. On a shared server this keeps the checkout itself read-only for whoever runs the tasks. Note that the commits the submodules are pinned to are then not used; `update-repos` checks out the branch/PR/tag configured in `Config.REPOSITORIES` anyway.
-    Optionally set `SDC_PYTEST_WORKERS` to the number of pytest-xdist workers per test suite (default `auto`, one per CPU). Every worker imports the full stack, so on a many-core server `auto` multiplies memory use, especially when `tests_all` runs several suites at once.
+    Optionally set `SDC_PYTEST_WORKERS` to the number of pytest-xdist workers per test suite (default `auto`, one per CPU). Every worker imports the full stack, so on a many-core server `auto` multiplies memory use, especially when several suites run at once (`tests_all`, or the tests step of `0_orchestrator_test_workflow`).
 
 5. Make sure a C/C++ compiler and a headless OpenGL stack are installed
    (needed by `install_env.sh` to build `mahotas`, a `squidpy` dependency,

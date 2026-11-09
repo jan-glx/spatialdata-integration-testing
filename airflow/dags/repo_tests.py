@@ -15,7 +15,8 @@ for repo in TEST_REPOS:
         default_args=default_args,
         description=f'Run tests {repo}',
         schedule=None,
-        catchup=False
+        catchup=False,
+        is_paused_upon_creation=False,
     )
 
     tests_repo = BashOperator(
@@ -36,7 +37,8 @@ tests_all = DAG(
     default_args=default_args,
     description='Run all pytest tasks',
     schedule=None,
-    catchup=False
+    catchup=False,
+    is_paused_upon_creation=False,
 )
 
 run_tests_all = build_tests_task(dag=tests_all)

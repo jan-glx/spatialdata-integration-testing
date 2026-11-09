@@ -1,8 +1,11 @@
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from spatialdata_data_converter.config import Config, get_airflow_default_args, get_cli_command
-from spatialdata_data_converter.airflow_tasks import build_download_task, build_to_zarr_task
+from spatialdata_data_converter.airflow_tasks import (
+    build_download_spatialdata_io_datasets_task,
+    build_download_task,
+    build_to_zarr_task,
+)
 
 default_args = get_airflow_default_args()
 
@@ -17,7 +20,8 @@ for dataset in Config.DATASETS:
             default_args=default_args,
             description=f'Download data for {dataset}',
             schedule=None,
-            catchup=False
+            catchup=False,
+            is_paused_upon_creation=False,
         )
 
         run_download_script = BashOperator(
@@ -39,7 +43,8 @@ for dataset in Config.DATASETS:
             default_args=default_args,
             description=f'Convert data for {dataset} to zarr',
             schedule=None,
-            catchup=False
+            catchup=False,
+            is_paused_upon_creation=False,
         )
 
         run_to_zarr_script = BashOperator(
@@ -61,7 +66,8 @@ for dataset in Config.DATASETS:
             default_args=default_args,
             description=f'Upload data for {dataset} to S3',
             schedule=None,
-            catchup=False
+            catchup=False,
+            is_paused_upon_creation=True,  # publishes to S3: switched on deliberately per instance
         )
 
         run_upload_script = BashOperator(
@@ -81,17 +87,13 @@ download_all = DAG(
     default_args=default_args,
     description='Run all the download tasks',
     schedule=None,
-    catchup=False
+    catchup=False,
+    is_paused_upon_creation=False,
 )
 run_download_all = build_download_task(dag=download_all)
 
-# Also trigger spatialdata-io datasets download
-trigger_spatialdata_io_datasets = TriggerDagRunOperator(
-    task_id='trigger_download_spatialdata_io_datasets_from_download_all',
-    trigger_dag_id='download_spatialdata_io_datasets',
-    wait_for_completion=True,
-    dag=download_all,
-)
+# Also download the spatialdata-io test datasets
+run_download_spatialdata_io_datasets = build_download_spatialdata_io_datasets_task(dag=download_all)
 
 # --------- convert all datasets to zarr ---------
 # Creation of a 'to_zarr_all' DAG that runs a mapped to_zarr task per dataset
@@ -100,7 +102,8 @@ to_zarr_all = DAG(
     default_args=default_args,
     description='Run all the to_zarr tasks',
     schedule=None,
-    catchup=False
+    catchup=False,
+    is_paused_upon_creation=False,
 )
 run_to_zarr_all = build_to_zarr_task(dag=to_zarr_all)
 
@@ -111,7 +114,8 @@ upload_all = DAG(
     default_args=default_args,
     description='Run all the upload tasks',
     schedule=None,
-    catchup=False
+    catchup=False,
+    is_paused_upon_creation=True,  # publishes to S3: switched on deliberately per instance
 )
 run_upload_all = BashOperator.partial(
     task_id='run_upload_script',

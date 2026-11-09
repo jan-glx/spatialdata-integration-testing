@@ -1,10 +1,30 @@
 import os
 
 from airflow.providers.standard.operators.bash import BashOperator
+from airflow.sdk import Param
 
-from spatialdata_data_converter.config import Config, get_cli_command
+from spatialdata_data_converter.config import Config, branch_envvar, get_cli_command
 
 MAP_INDEX_TEMPLATE = '{{ task.bash_command.split()[-1] }}'
+
+# Per-run branch overrides ("Trigger DAG w/ config"); empty = use Config.REPOSITORIES.
+# Same syntax as Config.REPOSITORIES: 'main', 'branch-name', 'pr 329', 'tag v0.4.0', 'None' (latest release).
+REPOSITORY_PARAMS = {
+    repo: Param(
+        None,
+        type=["null", "string"],  # nullable, so the trigger form doesn't mark it required
+        description=f"Branch / 'pr <n>' / 'tag <t>' / 'None' for {repo}; empty = config.py ({Config.REPOSITORIES[repo]!r})",
+    )
+    for repo in Config.REPOSITORIES
+}
+
+
+def update_repos_env() -> dict[str, str]:
+    """Env for build_update_repos_task in a DAG with REPOSITORY_PARAMS: the per-run overrides.
+
+    Passed via env vars (read by the click options) rather than CLI args, to avoid shell quoting.
+    """
+    return {branch_envvar(repo): "{{ params['%s'] or '' }}" % repo for repo in REPOSITORY_PARAMS}
 
 TEST_REPOS = ["spatialdata", "spatialdata-plot", "spatialdata-io", "napari-spatialdata"]
 
