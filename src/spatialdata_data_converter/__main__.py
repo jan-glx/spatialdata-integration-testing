@@ -6,7 +6,7 @@ from spatialdata_data_converter.subprocess_runner import (
 )
 import spatialdata_data_converter.config as sdcc  # we import this so if Config is changed (via code), the changes are available
 from spatialdata_data_converter.utils import update_all_repos
-from spatialdata_data_converter.symlinker import make_all_symlinks
+from spatialdata_data_converter.symlinker import make_all_symlinks, make_notebook_symlinks
 from spatialdata_data_converter.uploader import upload_to_s3
 from pathlib import Path
 
@@ -135,7 +135,8 @@ def to_zarr(dataset: str):
     default=None,
 )
 def run_docs_notebook(notebook: str):
-    """Run a documentation notebook."""
+    """Run a documentation notebook, after creating the symlinks it needs (if any)."""
+    make_notebook_symlinks(notebook)
     run_notebook(
         notebook_folder=sdcc.Config.DOCS_NOTEBOOKS_FOLDER,
         notebook=notebook,
