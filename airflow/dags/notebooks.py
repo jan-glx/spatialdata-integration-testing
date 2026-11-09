@@ -2,8 +2,9 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
 from spatialdata_data_converter.airflow_tasks import (
-    docs_notebooks,
+    NOTEBOOK_SYMLINK_DATASETS,
     build_notebook_docs_task,
+    docs_notebooks,
 )
 
 default_args = get_airflow_default_args()
@@ -27,42 +28,19 @@ for notebook in docs_notebooks():
         dag=dag,
         retries=0,
     )
-    globals()[f'notebook_task_{notebook}'] = notebook_task
+
+    # --------- call the symlinker for the notebook's dataset first, if it needs one ---------
+    symlink_dataset = NOTEBOOK_SYMLINK_DATASETS.get(notebook)
+    if symlink_dataset is not None:
+        symlinker = BashOperator(
+            task_id=f'symlinker_{notebook}',
+            bash_command=get_cli_command(f'create-symlinks --dataset {symlink_dataset}'),
+            dag=dag,
+        )
+        symlinker >> notebook_task
 
     # Assign the dag object to a variable that complies with Airflow's naming conventions
     globals()[dag_id] = dag
-
-# --------- call the symlinkers for specific datasets ---------
-for dataset in ['napari_rois', 'densenet', 'alignment_using_landmarks', 'spatial_query', 'squidpy_integration', 'technology_merfish', 'technology_mibitof', 'technology_visium', 'technology_visium_hd', 'technology_visium_hd_mouse_4.0.1', 'technology_xenium', 'transformations', 'transformations_advanced', 'technology_spacem']:
-
-    globals()[f'symlinker_{dataset}'] = BashOperator(
-        task_id=f'symlinker_{dataset}',
-        bash_command=get_cli_command(f'create-symlinks --dataset {dataset}'),
-        dag=globals()[f'notebook_{dataset}'],
-    )
-    globals()[f'symlinker_{dataset}'] >> globals()[f'notebook_task_{dataset}']
-
-# --------- aggregation uses the transformations symlinker ---------
-globals()['symlinker_aggregation'] = BashOperator(
-    task_id='symlinker_aggregation',
-    bash_command=get_cli_command('create-symlinks --dataset transformations'),
-    dag=globals()['notebook_aggregation'],
-)
-globals()['symlinker_aggregation'] >> globals()['notebook_task_aggregation']
-
-globals()['symlinker_intro'] = BashOperator(
-    task_id='symlinker_intro',
-    bash_command=get_cli_command('create-symlinks --dataset transformations'),
-    dag=globals()['notebook_intro'],
-)
-globals()['symlinker_intro'] >> globals()['notebook_task_intro']
-
-globals()['symlinker_table_queries'] = BashOperator(
-    task_id='symlinker_table_queries',
-    bash_command=get_cli_command('create-symlinks --dataset technology_mibitof'),
-    dag=globals()['notebook_table-queries'],
-)
-globals()['symlinker_table_queries'] >> globals()['notebook_task_table-queries']
 
 # --------- run all the docs notebooks (lightweight) ---------
 notebook_docs_all = DAG(
