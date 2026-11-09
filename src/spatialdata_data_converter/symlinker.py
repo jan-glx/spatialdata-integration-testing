@@ -137,3 +137,28 @@ def make_symlinks(dataset: str):
 def make_all_symlinks():
     for dataset in ['transformations', 'densenet', 'transformations_advanced', 'alignment_using_landmarks', "spatial_query", "napari_rois", "squidpy_integration", "technology_merfish", "technology_mibitof", "technology_visium", 'technology_visium_hd', 'technology_visium_hd_mouse_4.0.1', 'technology_xenium', 'technology_spacem', 'create_cells_dataset']:
         make_symlinks(dataset)()
+
+
+# Docs notebooks that need a dataset's symlinks before they run. Keys equal to their value are the
+# common case (create-symlinks --dataset X for notebook X); the others reuse another dataset's.
+NOTEBOOK_SYMLINK_DATASETS = {
+    notebook: notebook
+    for notebook in [
+        'napari_rois', 'densenet', 'alignment_using_landmarks', 'spatial_query',
+        'squidpy_integration', 'technology_merfish', 'technology_mibitof',
+        'technology_visium', 'technology_visium_hd', 'technology_visium_hd_mouse_4.0.1',
+        'technology_xenium', 'transformations', 'transformations_advanced', 'technology_spacem',
+    ]
+}
+NOTEBOOK_SYMLINK_DATASETS.update({
+    'aggregation': 'transformations',
+    'intro': 'transformations',
+    'table-queries': 'technology_mibitof',
+})
+
+
+def make_notebook_symlinks(notebook: str):
+    """Create the symlinks a docs notebook needs (if any); idempotent."""
+    dataset = NOTEBOOK_SYMLINK_DATASETS.get(notebook)
+    if dataset is not None:
+        make_symlinks(dataset)()
