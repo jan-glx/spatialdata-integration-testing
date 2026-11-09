@@ -4,6 +4,7 @@ from spatialdata_data_converter.airflow_tasks import (
     REPOSITORY_PARAMS,
     build_create_symlinks_task,
     build_install_env_task,
+    build_record_env_task,
     build_update_repos_task,
     update_repos_env,
 )
@@ -20,6 +21,7 @@ dag = DAG(
 )
 
 run_shell_script = build_install_env_task(dag=dag)
+run_shell_script >> build_record_env_task(dag=dag)
 
 # --------- update repos DAG ---------
 dag_update_repos = DAG(

@@ -5,7 +5,9 @@ waited for them. That made every step a separate DAG with its own pause state: a
 on a paused DAG stays queued forever, and the orchestrator waited on it without a timeout. As
 tasks of one DAG, the steps can't hang that way, and the graph shows the whole pipeline.
 
-The per-step DAGs still exist for running a single step by hand.
+The single-step DAGs (tests_<repo>, to_zarr_<dataset>, notebook_<notebook>, ...) still exist for
+running one step by hand. Every step records an asset event per item (airflow_operators.py), so
+an item's history is in one place, the Assets view, whichever DAG ran it.
 """
 from airflow import DAG
 from airflow.sdk import TaskGroup
@@ -16,6 +18,7 @@ from spatialdata_data_converter.airflow_tasks import (
     build_download_spatialdata_io_datasets_task,
     build_download_task,
     build_install_env_task,
+    build_record_env_task,
     build_notebook_docs_task,
     build_tests_task,
     build_to_zarr_task,
@@ -41,11 +44,12 @@ with orchestrator_first_run:
     first_run_update_repos = build_update_repos_task(dag=orchestrator_first_run)
     first_run_create_symlinks = build_create_symlinks_task(dag=orchestrator_first_run)
     first_run_install_env = build_install_env_task(dag=orchestrator_first_run)
+    first_run_record_env = build_record_env_task(dag=orchestrator_first_run)
     with TaskGroup('download') as first_run_download:
         build_download_task(dag=orchestrator_first_run)
         build_download_spatialdata_io_datasets_task(dag=orchestrator_first_run)
 
-    first_run_update_repos >> first_run_create_symlinks >> first_run_install_env >> first_run_download
+    first_run_update_repos >> first_run_create_symlinks >> first_run_install_env >> first_run_record_env >> first_run_download
 
 # --------- Test Workflow Orchestrator ---------
 # update repos -> install env -> tests -> convert to zarr -> docs notebooks
@@ -68,6 +72,7 @@ with orchestrator_test_workflow:
         dag=orchestrator_test_workflow, env=update_repos_env(), append_env=True,
     )
     test_workflow_install_env = build_install_env_task(dag=orchestrator_test_workflow)
+    test_workflow_record_env = build_record_env_task(dag=orchestrator_test_workflow)
     with TaskGroup('tests') as test_workflow_tests:
         build_tests_task(dag=orchestrator_test_workflow)
     with TaskGroup('to_zarr') as test_workflow_to_zarr:
@@ -78,6 +83,7 @@ with orchestrator_test_workflow:
     (
         test_workflow_update_repos
         >> test_workflow_install_env
+        >> test_workflow_record_env
         >> test_workflow_tests
         >> test_workflow_to_zarr
         >> test_workflow_notebook_docs

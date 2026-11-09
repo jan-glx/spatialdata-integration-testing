@@ -32,6 +32,36 @@ def install_env():
     )
 
 @cli.command()
+def record_env():
+    """Log what a run tests with: the env's packages (explicit lock + pip freeze) and each repo's commit.
+
+    The full list goes to the log; the last line is a JSON summary (repo commits, sha256 of the
+    package list), which the Airflow task records on the env asset event.
+    """
+    import hashlib
+    import json
+    import subprocess
+
+    env = sdcc.Config.ENV
+    packages = run_subprocess(
+        cmd=f"micromamba env export -n {env} --explicit && python -m pip freeze --all",
+        env=env,
+        update_repos=False,
+    )
+    repos = {}
+    for repo in sdcc.Config.REPOSITORIES:
+        path = Path(sdcc.Config.REPOSITORIES_FOLDER) / repo
+        result = subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True)
+        repos[repo] = result.stdout.strip() if result.returncode == 0 else None
+    summary = {
+        "env": env,
+        "packages_sha256": hashlib.sha256(packages.encode()).hexdigest(),
+        "repos": repos,
+    }
+    print(json.dumps(summary, sort_keys=True))
+
+
+@cli.command()
 @click.option("--spatialdata", default="<unchanged>", envvar=sdcc.branch_envvar("spatialdata"), help="Branch for spatialdata (default: <unchanged>)")
 @click.option("--spatialdata-io", default="<unchanged>", envvar=sdcc.branch_envvar("spatialdata-io"), help="Branch for spatialdata-io (default: <unchanged>)")
 @click.option("--spatialdata-plot", default="<unchanged>", envvar=sdcc.branch_envvar("spatialdata-plot"), help="Branch for spatialdata-plot (default: <unchanged>)")

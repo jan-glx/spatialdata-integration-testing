@@ -1,10 +1,9 @@
 from airflow import DAG
-from airflow.providers.standard.operators.bash import BashOperator
+from spatialdata_data_converter.airflow_operators import AssetBashOperator, asset_alias
 from spatialdata_data_converter.config import Config, get_airflow_default_args, get_cli_command
 from spatialdata_data_converter.airflow_tasks import (
     build_download_spatialdata_io_datasets_task,
     build_download_task,
-    build_to_zarr_task,
 )
 
 default_args = get_airflow_default_args()
@@ -24,9 +23,11 @@ for dataset in Config.DATASETS:
             is_paused_upon_creation=False,
         )
 
-        run_download_script = BashOperator(
+        run_download_script = AssetBashOperator(
             task_id=f'run_download_script_{dataset}',
             bash_command=get_cli_command(f'download --dataset {dataset}'),
+            asset_kind='download',
+            outlets=[asset_alias('download')],
             dag=dag,
             retries=0,
         )
@@ -34,7 +35,7 @@ for dataset in Config.DATASETS:
         # Assign the dag object to a variable that complies with Airflow's naming conventions
         globals()[dag_id] = dag
 
-    # --------- convert a single dataset to zarr ---------
+    # --------- convert a single dataset to zarr (all of them: 0_orchestrator_test_workflow) ---------
     if dataset not in Config.DATASETS_NO_TO_ZARR:
         dag_id = f'to_zarr_{dataset}'
 
@@ -47,9 +48,11 @@ for dataset in Config.DATASETS:
             is_paused_upon_creation=False,
         )
 
-        run_to_zarr_script = BashOperator(
+        run_to_zarr_script = AssetBashOperator(
             task_id=f'run_to_zarr_script_{dataset}',
             bash_command=get_cli_command(f'to-zarr --dataset {dataset}'),
+            asset_kind='to_zarr',
+            outlets=[asset_alias('to_zarr')],
             dag=dag,
             retries=0,
         )
@@ -70,9 +73,11 @@ for dataset in Config.DATASETS:
             is_paused_upon_creation=True,  # publishes to S3: switched on deliberately per instance
         )
 
-        run_upload_script = BashOperator(
+        run_upload_script = AssetBashOperator(
             task_id=f'run_upload_script_{dataset}',
             bash_command=get_cli_command(f'upload --dataset {dataset}'),
+            asset_kind='upload',
+            outlets=[asset_alias('upload')],
             dag=dag,
             retries=0,
         )
@@ -95,18 +100,6 @@ run_download_all = build_download_task(dag=download_all)
 # Also download the spatialdata-io test datasets
 run_download_spatialdata_io_datasets = build_download_spatialdata_io_datasets_task(dag=download_all)
 
-# --------- convert all datasets to zarr ---------
-# Creation of a 'to_zarr_all' DAG that runs a mapped to_zarr task per dataset
-to_zarr_all = DAG(
-    'to_zarr_all',
-    default_args=default_args,
-    description='Run all the to_zarr tasks',
-    schedule=None,
-    catchup=False,
-    is_paused_upon_creation=False,
-)
-run_to_zarr_all = build_to_zarr_task(dag=to_zarr_all)
-
 # --------- upload all datasets ---------
 # Creation of an 'upload_all' DAG that runs a mapped upload task per dataset
 upload_all = DAG(
@@ -117,8 +110,10 @@ upload_all = DAG(
     catchup=False,
     is_paused_upon_creation=True,  # publishes to S3: switched on deliberately per instance
 )
-run_upload_all = BashOperator.partial(
+run_upload_all = AssetBashOperator.partial(
     task_id='run_upload_script',
+    asset_kind='upload',
+    outlets=[asset_alias('upload')],
     dag=upload_all,
     retries=0,
     map_index_template='{{ task.bash_command.split()[-1] }}',

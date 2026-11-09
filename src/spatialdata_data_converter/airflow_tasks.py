@@ -3,6 +3,7 @@ import os
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import Param, task
 
+from spatialdata_data_converter.airflow_operators import AssetBashOperator, asset_alias
 from spatialdata_data_converter.config import Config, branch_envvar, get_cli_command
 
 MAP_INDEX_TEMPLATE = '{{ task.bash_command.split()[-1] }}'
@@ -74,6 +75,21 @@ def build_install_env_task(dag, task_group=None):
     )
 
 
+def build_record_env_task(dag, task_group=None):
+    # Logs the env's packages and the repo commits a run tests with (#6), as an event on the
+    # asset env/ome_sdc (repo commits and package-list hash in its extra).
+    return AssetBashOperator(
+        task_id='record_env',
+        bash_command=get_cli_command('record-env'),
+        asset_kind='env',
+        asset_item=Config.ENV,
+        outlets=[asset_alias('env')],
+        dag=dag,
+        task_group=task_group,
+        retries=0,
+    )
+
+
 def build_create_symlinks_task(dag, task_group=None):
     return BashOperator(
         task_id='create_symlinks',
@@ -95,7 +111,9 @@ def build_download_spatialdata_io_datasets_task(dag, task_group=None):
 
 
 def build_download_task(dag, task_group=None):
-    return BashOperator.partial(
+    return AssetBashOperator.partial(
+        asset_kind='download',
+        outlets=[asset_alias('download')],
         task_id='run_download_script',
         dag=dag,
         task_group=task_group,
@@ -107,7 +125,9 @@ def build_download_task(dag, task_group=None):
 
 
 def build_tests_task(dag, task_group=None):
-    return BashOperator.partial(
+    return AssetBashOperator.partial(
+        asset_kind='tests',
+        outlets=[asset_alias('tests')],
         task_id='run_tests',
         dag=dag,
         task_group=task_group,
@@ -118,7 +138,9 @@ def build_tests_task(dag, task_group=None):
 
 
 def build_to_zarr_task(dag, task_group=None):
-    return BashOperator.partial(
+    return AssetBashOperator.partial(
+        asset_kind='to_zarr',
+        outlets=[asset_alias('to_zarr')],
         task_id='run_to_zarr_script',
         dag=dag,
         task_group=task_group,
@@ -141,7 +163,9 @@ def build_notebook_docs_task(dag, task_group=None):
     # decides which notebooks run. The command is fixed (only NOTEBOOK varies), so the cluster
     # policy still sees `run-docs-notebook`; it also creates the notebook's symlinks.
     notebooks = list_docs_notebooks.override(dag=dag, task_group=task_group)()
-    return BashOperator.partial(
+    return AssetBashOperator.partial(
+        asset_kind='notebook',
+        outlets=[asset_alias('notebook')],
         task_id='run_notebook',
         dag=dag,
         task_group=task_group,
