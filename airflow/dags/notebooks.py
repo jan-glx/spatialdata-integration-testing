@@ -1,6 +1,6 @@
 from airflow import DAG
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
-from spatialdata_data_converter.airflow_operators import AssetBashOperator, asset_alias
+from spatialdata_data_converter.airflow_operators import AssetBashOperator
 from spatialdata_data_converter.airflow_tasks import docs_notebooks
 
 default_args = get_airflow_default_args()
@@ -23,7 +23,6 @@ for notebook in docs_notebooks():
         task_id=f'notebook_{notebook}',
         bash_command=get_cli_command(f'run-docs-notebook --notebook {notebook}'),
         asset_kind='notebook',
-        outlets=[asset_alias('notebook')],
         dag=dag,
         retries=0,
     )

@@ -27,7 +27,6 @@ for dataset in Config.DATASETS:
             task_id=f'run_download_script_{dataset}',
             bash_command=get_cli_command(f'download --dataset {dataset}'),
             asset_kind='download',
-            outlets=[asset_alias('download')],
             dag=dag,
             retries=0,
         )
@@ -52,7 +51,6 @@ for dataset in Config.DATASETS:
             task_id=f'run_to_zarr_script_{dataset}',
             bash_command=get_cli_command(f'to-zarr --dataset {dataset}'),
             asset_kind='to_zarr',
-            outlets=[asset_alias('to_zarr')],
             dag=dag,
             retries=0,
         )
@@ -77,7 +75,6 @@ for dataset in Config.DATASETS:
             task_id=f'run_upload_script_{dataset}',
             bash_command=get_cli_command(f'upload --dataset {dataset}'),
             asset_kind='upload',
-            outlets=[asset_alias('upload')],
             dag=dag,
             retries=0,
         )

@@ -83,7 +83,6 @@ def build_record_env_task(dag, task_group=None):
         bash_command=get_cli_command('record-env'),
         asset_kind='env',
         asset_item=Config.ENV,
-        outlets=[asset_alias('env')],
         dag=dag,
         task_group=task_group,
         retries=0,

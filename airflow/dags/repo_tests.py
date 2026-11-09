@@ -1,6 +1,6 @@
 from airflow import DAG
 from spatialdata_data_converter.config import get_airflow_default_args, get_cli_command
-from spatialdata_data_converter.airflow_operators import AssetBashOperator, asset_alias
+from spatialdata_data_converter.airflow_operators import AssetBashOperator
 from spatialdata_data_converter.airflow_tasks import TEST_REPOS
 
 default_args = get_airflow_default_args()
@@ -23,7 +23,6 @@ for repo in TEST_REPOS:
         task_id=f'tests_{repo}',
         bash_command=get_cli_command(f'run-tests --repo {repo}'),
         asset_kind='tests',
-        outlets=[asset_alias('tests')],
         dag=dag,
     )
 
