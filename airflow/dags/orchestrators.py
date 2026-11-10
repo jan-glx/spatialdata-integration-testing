@@ -16,12 +16,12 @@ from spatialdata_data_converter.airflow_tasks import (
     REPOSITORY_PARAMS,
     build_create_symlinks_task,
     build_download_spatialdata_io_datasets_task,
-    build_download_task,
+    build_download_tasks,
     build_install_env_task,
     build_record_env_task,
     build_notebook_docs_task,
-    build_tests_task,
-    build_to_zarr_task,
+    build_tests_tasks,
+    build_to_zarr_tasks,
     build_update_repos_task,
     update_repos_env,
 )
@@ -46,13 +46,13 @@ with orchestrator_first_run:
     first_run_install_env = build_install_env_task(dag=orchestrator_first_run)
     first_run_record_env = build_record_env_task(dag=orchestrator_first_run)
     with TaskGroup('download') as first_run_download:
-        build_download_task(dag=orchestrator_first_run)
+        build_download_tasks(dag=orchestrator_first_run)
         build_download_spatialdata_io_datasets_task(dag=orchestrator_first_run)
 
     first_run_update_repos >> first_run_create_symlinks >> first_run_install_env >> first_run_record_env >> first_run_download
 
 # --------- Test Workflow Orchestrator ---------
-# update repos -> install env -> tests -> convert to zarr -> docs notebooks
+# update repos -> install env -> record env -> { tests | convert to zarr -> docs notebooks }
 orchestrator_test_workflow = DAG(
     '0_orchestrator_test_workflow',
     default_args=default_args,
@@ -74,17 +74,14 @@ with orchestrator_test_workflow:
     test_workflow_install_env = build_install_env_task(dag=orchestrator_test_workflow)
     test_workflow_record_env = build_record_env_task(dag=orchestrator_test_workflow)
     with TaskGroup('tests') as test_workflow_tests:
-        build_tests_task(dag=orchestrator_test_workflow)
+        build_tests_tasks(dag=orchestrator_test_workflow)
     with TaskGroup('to_zarr') as test_workflow_to_zarr:
-        build_to_zarr_task(dag=orchestrator_test_workflow)
+        build_to_zarr_tasks(dag=orchestrator_test_workflow)
     with TaskGroup('notebook_docs') as test_workflow_notebook_docs:
         build_notebook_docs_task(dag=orchestrator_test_workflow)
 
-    (
-        test_workflow_update_repos
-        >> test_workflow_install_env
-        >> test_workflow_record_env
-        >> test_workflow_tests
-        >> test_workflow_to_zarr
-        >> test_workflow_notebook_docs
-    )
+    # tests and conversion only need the env, not each other: a failing test suite must not hide
+    # whether the conversions and notebooks work. The run is still failed if anything fails.
+    test_workflow_update_repos >> test_workflow_install_env >> test_workflow_record_env
+    test_workflow_record_env >> test_workflow_tests
+    test_workflow_record_env >> test_workflow_to_zarr >> test_workflow_notebook_docs

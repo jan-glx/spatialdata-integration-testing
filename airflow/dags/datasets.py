@@ -1,9 +1,9 @@
 from airflow import DAG
-from spatialdata_data_converter.airflow_operators import AssetBashOperator, asset_alias
+from spatialdata_data_converter.airflow_operators import AssetBashOperator
 from spatialdata_data_converter.config import Config, get_airflow_default_args, get_cli_command
 from spatialdata_data_converter.airflow_tasks import (
     build_download_spatialdata_io_datasets_task,
-    build_download_task,
+    build_download_tasks,
 )
 
 default_args = get_airflow_default_args()
@@ -92,7 +92,7 @@ download_all = DAG(
     catchup=False,
     is_paused_upon_creation=False,
 )
-run_download_all = build_download_task(dag=download_all)
+run_download_all = build_download_tasks(dag=download_all)
 
 # Also download the spatialdata-io test datasets
 run_download_spatialdata_io_datasets = build_download_spatialdata_io_datasets_task(dag=download_all)
@@ -107,13 +107,15 @@ upload_all = DAG(
     catchup=False,
     is_paused_upon_creation=True,  # publishes to S3: switched on deliberately per instance
 )
-run_upload_all = AssetBashOperator.partial(
-    task_id='run_upload_script',
-    asset_kind='upload',
-    outlets=[asset_alias('upload')],
-    dag=upload_all,
-    retries=0,
-    map_index_template='{{ task.bash_command.split()[-1] }}',
-).expand(
-    bash_command=[get_cli_command(f'upload --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_UPLOAD]
-)
+# one task per dataset, so each upload shows as its own row (and its own asset event)
+run_upload_all = [
+    AssetBashOperator(
+        task_id=dataset,
+        bash_command=get_cli_command(f'upload --dataset {dataset}'),
+        asset_kind='upload',
+        dag=upload_all,
+        retries=0,
+    )
+    for dataset in Config.DATASETS
+    if dataset not in Config.DATASETS_NO_UPLOAD
+]

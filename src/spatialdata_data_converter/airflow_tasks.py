@@ -1,12 +1,10 @@
 import os
 
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import Param, task
+from airflow.sdk import Param, TriggerRule, task
 
 from spatialdata_data_converter.airflow_operators import AssetBashOperator, asset_alias
 from spatialdata_data_converter.config import Config, branch_envvar, get_cli_command
-
-MAP_INDEX_TEMPLATE = '{{ task.bash_command.split()[-1] }}'
 
 # Per-run branch overrides ("Trigger DAG w/ config"); empty = use Config.REPOSITORIES.
 # Same syntax as Config.REPOSITORIES: 'main', 'branch-name', 'pr 329', 'tag v0.4.0', 'None' (latest release).
@@ -109,48 +107,37 @@ def build_download_spatialdata_io_datasets_task(dag, task_group=None):
     )
 
 
-def build_download_task(dag, task_group=None):
-    return AssetBashOperator.partial(
-        asset_kind='download',
-        outlets=[asset_alias('download')],
-        task_id='run_download_script',
-        dag=dag,
-        task_group=task_group,
-        retries=0,
-        map_index_template=MAP_INDEX_TEMPLATE,
-    ).expand(
-        bash_command=[get_cli_command(f'download --dataset {dataset}') for dataset in DOWNLOADABLE_DATASETS]
-    )
+def _per_item_tasks(dag, task_group, kind, items, command, **kwargs):
+    # One task per item (not one mapped task), so the grid shows each repo/dataset as its own row
+    # with its own status. Items come from config.py, i.e. are known when the DAG is parsed. Each
+    # task records the event on its item's asset (static outlet, see airflow_operators.py).
+    return [
+        AssetBashOperator(
+            task_id=item,
+            bash_command=get_cli_command(command.format(item=item)),
+            asset_kind=kind,
+            dag=dag,
+            task_group=task_group,
+            **kwargs,
+        )
+        for item in items
+    ]
 
 
-def build_tests_task(dag, task_group=None):
-    return AssetBashOperator.partial(
-        asset_kind='tests',
-        outlets=[asset_alias('tests')],
-        task_id='run_tests',
-        dag=dag,
-        task_group=task_group,
-        map_index_template=MAP_INDEX_TEMPLATE,
-    ).expand(
-        bash_command=[get_cli_command(f'run-tests --repo {repo}') for repo in TEST_REPOS]
-    )
+def build_download_tasks(dag, task_group=None):
+    return _per_item_tasks(dag, task_group, 'download', DOWNLOADABLE_DATASETS, 'download --dataset {item}', retries=0)
 
 
-def build_to_zarr_task(dag, task_group=None):
-    return AssetBashOperator.partial(
-        asset_kind='to_zarr',
-        outlets=[asset_alias('to_zarr')],
-        task_id='run_to_zarr_script',
-        dag=dag,
-        task_group=task_group,
-        retries=0,
-        map_index_template=MAP_INDEX_TEMPLATE,
-    ).expand(
-        bash_command=[get_cli_command(f'to-zarr --dataset {dataset}') for dataset in Config.DATASETS if dataset not in Config.DATASETS_NO_TO_ZARR]
-    )
+def build_tests_tasks(dag, task_group=None):
+    return _per_item_tasks(dag, task_group, 'tests', TEST_REPOS, 'run-tests --repo {item}')
 
 
-@task(retries=0)
+def build_to_zarr_tasks(dag, task_group=None):
+    datasets = [d for d in Config.DATASETS if d not in Config.DATASETS_NO_TO_ZARR]
+    return _per_item_tasks(dag, task_group, 'to_zarr', datasets, 'to-zarr --dataset {item}', retries=0)
+
+
+@task(retries=0, trigger_rule=TriggerRule.ALL_DONE_MIN_ONE_SUCCESS)
 def list_docs_notebooks() -> list[dict[str, str]]:
     """Run time: the docs notebooks in this run's checkout, as env for run_notebook's mapped instances."""
     return [{"NOTEBOOK": notebook} for notebook in docs_notebooks(missing_ok=False)]
